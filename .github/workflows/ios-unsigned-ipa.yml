@@ -1,107 +1,62 @@
-name: Build Unsigned iOS IPA
+name: Build LuckyGlass Unsigned IPA
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+    paths:
+      - "swift-ios/**"
+      - ".github/workflows/ios-unsigned-ipa.yml"
 
 concurrency:
-  group: unsigned-ios-ipa-${{ github.ref }}
+  group: luckyglass-unsigned-ipa-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     permissions:
       contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Verify endpoint coverage, types, and dependencies
-        run: npm run verify
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Select Xcode 26
+        shell: bash
         run: |
           set -euo pipefail
-          XCODE_26_PATH="$(find /Applications -maxdepth 1 -name 'Xcode_26*.app' -type d | sort | tail -n 1)"
-          if [ -z "$XCODE_26_PATH" ]; then
-            echo "Xcode 26 is required for native iOS Liquid Glass."
+          XCODE_PATH="$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' | sort -V | tail -n 1)"
+          if [[ -z "$XCODE_PATH" ]]; then
+            echo "Xcode 26 is required for iOS 26 Liquid Glass APIs."
+            ls -1 /Applications | grep '^Xcode' || true
             exit 1
           fi
-          sudo xcode-select -s "$XCODE_26_PATH"
+          sudo xcode-select --switch "$XCODE_PATH/Contents/Developer"
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
 
-      - name: Generate iOS project
-        run: npx expo prebuild --platform ios --clean --non-interactive
-
-      - name: Disable iOS code signing
-        run: |
-          set -euo pipefail
-
-          PROJECT_FILE="$(find ios -maxdepth 2 -name project.pbxproj -print -quit)"
-          if [ -z "$PROJECT_FILE" ]; then
-            echo "No Xcode project.pbxproj found under ios/."
-            exit 1
-          fi
-
-          ruby - "$PROJECT_FILE" <<'RUBY'
-          path = ARGV.fetch(0)
-          text = File.read(path)
-          text.gsub!(/CODE_SIGN_STYLE = Automatic;/, 'CODE_SIGN_STYLE = Manual;')
-          text.gsub!(/DEVELOPMENT_TEAM = [A-Z0-9]+;/, 'DEVELOPMENT_TEAM = "";')
-          text.gsub!(/"DEVELOPMENT_TEAM\[sdk=iphoneos\*\]" = [A-Z0-9]+;/, '"DEVELOPMENT_TEAM[sdk=iphoneos*]" = "";')
-          text.gsub!(/PROVISIONING_PROFILE_SPECIFIER = .*?;/, 'PROVISIONING_PROFILE_SPECIFIER = "";')
-          text.gsub!(/"PROVISIONING_PROFILE_SPECIFIER\[sdk=iphoneos\*\]" = .*?;/, '"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "";')
-          File.write(path, text)
-          RUBY
-
-      - name: Build unsigned app
+      - name: Inspect native project
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts/diagnostics
-
-          WORKSPACE="$(find ios -maxdepth 1 -name "*.xcworkspace" -print -quit)"
-          if [ -z "$WORKSPACE" ]; then
-            echo "No Xcode workspace found under ios/."
-            exit 1
-          fi
-
-          XCODEPROJ="$(find ios -maxdepth 1 -name "*.xcodeproj" -print -quit)"
-          if [ -z "$XCODEPROJ" ]; then
-            echo "No Xcode project found under ios/."
-            exit 1
-          fi
-
-          SCHEME="$(basename "$XCODEPROJ" .xcodeproj)"
-          if [ -z "$SCHEME" ]; then
-            echo "No Xcode scheme found in $WORKSPACE."
-            exit 1
-          fi
-
-          echo "Workspace: $WORKSPACE"
-          echo "Scheme: $SCHEME"
-          xcodebuild -list -workspace "$WORKSPACE" | tee artifacts/diagnostics/xcodebuild-schemes.txt
-
-          set +e
           xcodebuild \
-            -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
+            -project swift-ios/LuckyGlass.xcodeproj \
+            -scheme luckymobile \
+            -list | tee artifacts/diagnostics/xcodebuild-list.txt
+
+      - name: Build unsigned app
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project swift-ios/LuckyGlass.xcodeproj \
+            -scheme luckymobile \
             -configuration Release \
             -sdk iphoneos \
-            -destination generic/platform=iOS \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -109,44 +64,44 @@ jobs:
             DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
             clean build 2>&1 | tee artifacts/diagnostics/xcodebuild.log
-          XCODEBUILD_EXIT="${PIPESTATUS[0]}"
-          set -e
-
-          find build/DerivedData -maxdepth 8 -path "*/Build/Products/*" -print > artifacts/diagnostics/build-products.txt || true
-          exit "$XCODEBUILD_EXIT"
 
       - name: Package unsigned IPA
+        shell: bash
         run: |
           set -euo pipefail
-
-          APP_PATH="$(find build/DerivedData -path "*/Build/Products/*-iphoneos/*.app" -type d -print -quit)"
-          if [ -z "$APP_PATH" ]; then
-            echo "No built .app found."
-            echo "Available build products:"
-            find build/DerivedData -maxdepth 8 -path "*/Build/Products/*" -print || true
+          APP_PATH="$(find build/DerivedData/Build/Products/Release-iphoneos \
+            -maxdepth 1 -name 'LuckyGlass.app' -type d -print -quit)"
+          if [[ -z "$APP_PATH" ]]; then
+            echo "LuckyGlass.app was not produced."
+            find build/DerivedData/Build/Products -maxdepth 3 -print || true
             exit 1
           fi
 
-          echo "App path: $APP_PATH"
-
+          rm -rf artifacts/Payload
           mkdir -p artifacts/Payload
-          cp -R "$APP_PATH" artifacts/Payload/
+          ditto "$APP_PATH" artifacts/Payload/LuckyGlass.app
           (
             cd artifacts
-            ditto -c -k --sequesterRsrc --keepParent Payload lucky-mobile-unsigned.ipa
+            ditto -c -k --sequesterRsrc --keepParent Payload LuckyGlass-unsigned.ipa
           )
+          shasum -a 256 artifacts/LuckyGlass-unsigned.ipa \
+            | tee artifacts/LuckyGlass-unsigned.ipa.sha256
 
       - name: Upload unsigned IPA
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: lucky-mobile-unsigned-ipa
-          path: artifacts/lucky-mobile-unsigned.ipa
+          name: LuckyGlass-unsigned-ipa
+          path: |
+            artifacts/LuckyGlass-unsigned.ipa
+            artifacts/LuckyGlass-unsigned.ipa.sha256
           if-no-files-found: error
+          retention-days: 30
 
       - name: Upload build diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: lucky-mobile-ios-build-diagnostics
+          name: LuckyGlass-ios-build-diagnostics
           path: artifacts/diagnostics
           if-no-files-found: ignore
+          retention-days: 14
