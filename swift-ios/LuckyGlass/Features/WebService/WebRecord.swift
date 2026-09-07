@@ -306,7 +306,7 @@ extension WebAuthority {
         guard text.hasPrefix(":") else { throw WebRecord.badAddress }
         let digits = String(text.dropFirst())
         if digits.isEmpty { return }
-        guard JSCompat.isDigitsOnly(digits), let number = Int(digits), number <= 65535 else {
+        guard JSRegex.isDigitsOnly(digits), let number = Int(digits), number <= 65535 else {
             throw WebRecord.badAddress
         }
         portText = digits
