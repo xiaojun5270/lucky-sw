@@ -129,6 +129,19 @@ struct DockerScreen: View {
         _search = State(initialValue: initialSearch)
     }
 
+    /// Property-wrapper storage is private to this source file even when the wrapped property is
+    /// internal. These accessors deliberately expose only the `State` boxes used by sendable service
+    /// callbacks in the split action/query files; ordinary feature code continues through values.
+    var progressiveStatsState: State<JSONValue?> { _progressiveStats }
+    var imageDeleteProgressState: State<DockerProgress?> { _imageDeleteProgress }
+    var composeProgressState: State<DockerComposeProgress?> { _composeProgress }
+    var tasksState: State<[LuckyListItem]> { _tasks }
+    var loadedState: State<Set<DockerQuery>> { _loaded }
+    var unusedScanProgressState: State<DockerProgress?> { _unusedScanProgress }
+    var scanRequestState: State<Int> { _scanRequest }
+    var detailState: State<DockerDetail?> { _detail }
+    var detailRequestState: State<Int> { _detailRequest }
+
     var body: some View {
         chrome
             .task(id: view) { await loadView() }

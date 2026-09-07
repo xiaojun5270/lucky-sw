@@ -7,7 +7,7 @@ import SwiftUI
 /// them with `router.push('/docker?view=containers&search=nginx')`. A `NavigationStack` path
 /// carries values instead of strings, so the query parameters become associated values and the
 /// `titles` below are the `options.title` of each `Stack.Screen`.
-enum LuckyRoute: Hashable, Codable {
+enum LuckyRoute: Hashable {
     /// `/services/[kind]` — the shared list/detail screen for ddns and ssl.
     case service(LuckyServiceKind)
     /// `/webservice` — lifted out of `services/[kind]` because reverse proxy has its own screen.
@@ -86,7 +86,6 @@ enum LuckyTab: String, Hashable, CaseIterable, Identifiable {
 /// and a push from 服务 share one history. Here each tab keeps its own stack (the arrangement
 /// SwiftUI supports) and `push` targets whichever tab is showing, which produces the same
 /// forward navigation while making Back per-tab.
-@MainActor
 @Observable
 final class LuckyNavigator {
     var selection: LuckyTab = .dashboard

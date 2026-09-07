@@ -210,7 +210,7 @@ extension DockerScreen {
         let items = view == .containers ? containers : nil
         // `State` is `Sendable` and its setter is nonmutating, so the box can cross into the
         // progress callback where `self` could not.
-        let sink = _progressiveStats
+        let sink = progressiveStatsState
         do {
             liveStats = try await DockerService.refreshContainerStats(items: items) { partial in
                 Task { @MainActor in sink.wrappedValue = partial }

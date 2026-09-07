@@ -102,10 +102,10 @@ extension DockerScreen {
     /// and its setter is nonmutating, so each box crosses into a `@Sendable` callback where `self`
     /// — which `ServiceConfirmation`'s plain closure keeps non-`Sendable` — could not.
     private var runner: DockerActionRunner {
-        let deleteSink = _imageDeleteProgress
-        let composeSink = _composeProgress
-        let taskSink = _tasks
-        let loadedSink = _loaded
+        let deleteSink = imageDeleteProgressState
+        let composeSink = composeProgressState
+        let taskSink = tasksState
+        let loadedSink = loadedState
         return DockerActionRunner(
             upload: upload,
             onImageDelete: { progress in
@@ -402,8 +402,8 @@ extension DockerScreen {
             unusedScanProgress = nil
             scanTask = nil
         }
-        let progressSink = _unusedScanProgress
-        let requestSink = _scanRequest
+        let progressSink = unusedScanProgressState
+        let requestSink = scanRequestState
         let fallback = targets.count
         do {
             let report = try await DockerService.scanUnusedImages(targets) { progress in
@@ -488,8 +488,8 @@ extension DockerScreen {
     /// The sweep, then the status read that follows it. Both are guarded by the request id, so
     /// closing the viewer mid-check leaves the screen alone.
     private func runUpgradeSweep(_ references: [String], _ title: String, _ id: Int) async {
-        let detailSink = _detail
-        let requestSink = _detailRequest
+        let detailSink = detailState
+        let requestSink = detailRequestState
         let fallback = references.count
         let checked: JSONValue
         do {
