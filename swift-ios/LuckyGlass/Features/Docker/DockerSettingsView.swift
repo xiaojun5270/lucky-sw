@@ -162,7 +162,7 @@ extension DockerSettingsView {
     private func panel<Content: View>(
         title: String,
         symbol: String,
-        @ViewBuilder content: () -> Content
+        @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         LuckyCard(spacing: LuckyTheme.Space.m) {
             LuckySectionHeader(title: title, symbol: symbol)
